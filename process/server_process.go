@@ -37,7 +37,7 @@ func (s *ServerProcess) StatServer() {
 			utils.Log.Error("listen fail: ", err)
 			return
 		}
-		utils.Log.Info("start tcp %s, ", s.ServerName, "success, begin listen....")
+		utils.Log.Info("start tcp %s, success, begin listen....", s.ServerName)
 
 		//3.阻塞等待客户端的链接
 		for {
@@ -52,15 +52,15 @@ func (s *ServerProcess) StatServer() {
 			go func() {
 				for {
 					buf := make([]byte, 512)
-					// 把数据读到buf中, cnt是读取到的数据长度
-					cnt, err := conn.Read(buf)
+					// 把数据读到buf中, dataLen是读取到的数据长度
+					dataLen, err := conn.Read(buf)
 					if err != nil {
 						utils.Log.Error(" read buf error: %s", err.Error())
 						continue
 					}
-
+					utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
 					// 回写
-					_, err = conn.Write(buf[:cnt])
+					_, err = conn.Write(buf[:dataLen])
 					if err != nil {
 						utils.Log.Error(" write buf error: %s", err.Error())
 						continue
