@@ -54,13 +54,17 @@ func (s *ServerProcess) StatServer() {
 					buf := make([]byte, 512)
 					// 把数据读到buf中, dataLen是读取到的数据长度
 					dataLen, err := conn.Read(buf)
-					if err != nil {
+					if err != nil && err.Error() != "EOF" {
 						utils.Log.Error(" read buf error: %s", err.Error())
+						continue
+					}
+					//如果没收到数据，就不进行回写了
+					if dataLen == 0 {
 						continue
 					}
 					utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
 					// 回写
-					_, err = conn.Write(buf[:dataLen])
+					_, err = conn.Write([]byte("come on baby"))
 					if err != nil {
 						utils.Log.Error(" write buf error: %s", err.Error())
 						continue
@@ -79,7 +83,7 @@ func (s *ServerProcess) StopServer() {
 func (s *ServerProcess) RunServer() {
 	s.StatServer()
 
-	// 做一些启动服务器之后的操作
+	// 做一些启动服务器之后的操作 TODO
 
 	// 阻塞等待
 	select {}
