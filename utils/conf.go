@@ -37,7 +37,8 @@ func init() {
 
 // Reload 加载自定义参数
 func (g *GlobalConf) Reload() {
-	data, err := ioutil.ReadFile("conf.json")
+	//data, err := ioutil.ReadFile("demo/version/conf.json") // debug用这个
+	data, err := ioutil.ReadFile("conf.json") // 实际跑用这个
 	if err != nil {
 		panic(err)
 	}
