@@ -17,10 +17,25 @@ type ServerProcess struct {
 	IP string
 	// 服务器监听的端口
 	Port int
+	// server链接对应的处理业务
+	Router inface.RouterInterface
 }
 
+// CallBackToClient 当前客户端链接绑定的处理函数, 交由router去处理, 不在这里处理
+//func CallBackToClient(conn *net.TCPConn, data []byte, dataLen int) (err error) {
+//
+//	// 回写数据
+//	utils.Log.Info("write msg to client...,msg is: %s", string(data))
+//	_, err = conn.Write(data[:dataLen])
+//	if err != nil {
+//		utils.Log.Error(" write buf error: %ss", err.Error())
+//		return errors.New("write msg to client error")
+//	}
+//	return
+//}
+
 func (s *ServerProcess) StatServer() {
-	utils.Log.Info("[START] Server name: %s, listen at IP: %s, Port %d is starting",
+	utils.Log.Info("[START] Server name: %s, listen at IP: %s, Port %d is starting\n",
 		s.ServerName, s.IP, s.Port)
 
 	go func() {
@@ -38,6 +53,8 @@ func (s *ServerProcess) StatServer() {
 			return
 		}
 		utils.Log.Info("start tcp %s, success, begin listen....", s.ServerName)
+		var connId uint32
+		connId = 0
 
 		//3.阻塞等待客户端的链接
 		for {
@@ -47,30 +64,12 @@ func (s *ServerProcess) StatServer() {
 				continue
 			}
 
-			//4.读写客户端请求
-			//先搞个简单的
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					// 把数据读到buf中, dataLen是读取到的数据长度
-					dataLen, err := conn.Read(buf)
-					if err != nil && err.Error() != "EOF" {
-						utils.Log.Error(" read buf error: %s", err.Error())
-						continue
-					}
-					//如果没收到数据，就不进行回写了
-					if dataLen == 0 {
-						continue
-					}
-					utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
-					// 回写
-					_, err = conn.Write([]byte("come on baby"))
-					if err != nil {
-						utils.Log.Error(" write buf error: %s", err.Error())
-						continue
-					}
-				}
-			}()
+			// 绑定客户端链接和该链接的业务处理方法
+			processConn := NewConnection(conn, connId, s.Router)
+			connId++
+
+			// 开启链接的业务处理
+			go processConn.StartRead()
 		}
 	}()
 
@@ -81,12 +80,18 @@ func (s *ServerProcess) StopServer() {
 }
 
 func (s *ServerProcess) RunServer() {
+	// 在StatServer之前需要先把路由添加上
 	s.StatServer()
 
 	// 做一些启动服务器之后的操作 TODO
 
 	// 阻塞等待
 	select {}
+}
+
+func (s *ServerProcess) AddRouter(router inface.RouterInterface) {
+	s.Router = router
+	utils.Log.Info(" add router success")
 }
 
 // NewServerProcess 初始化server_process模块
@@ -96,5 +101,6 @@ func NewServerProcess(name string) inface.ServerInterface {
 		IPVersion:  "tcp4",
 		IP:         "0.0.0.0",
 		Port:       8999,
+		Router:     nil, // new的时候指定空, AddRouter的时候赋值
 	}
 }

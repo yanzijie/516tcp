@@ -12,22 +12,23 @@ import (
 */
 
 type ConnectionProcess struct {
-	Conn        *net.TCPConn      // 当前链接的socket套接字
-	ConnID      uint32            // 链接的ID
-	ConnIsClose bool              // 当前链接状态(是否已经关闭)
-	HandleApi   inface.HandleFunc // 与当前链接绑定的业务方法
-	ExitChan    chan bool         // 管理当前链接是否退出的channel
+	Conn        *net.TCPConn // 当前链接的socket套接字
+	ConnID      uint32       // 链接的ID
+	ConnIsClose bool         // 当前链接状态(是否已经关闭)
+	//HandleApi   inface.HandleFunc      // 与当前链接绑定的业务方法, 这里不需要了，交给router去处理
+	ExitChan chan bool              // 管理当前链接是否退出的channel
+	Router   inface.RouterInterface // 该链接的处理方法
 }
 
 // NewConnection 初始化链接
 // conn-客户端socket链接, connID-链接id, callbackApi-链接回调函数
-func NewConnection(conn *net.TCPConn, connID uint32, callbackApi inface.HandleFunc) *ConnectionProcess {
+func NewConnection(conn *net.TCPConn, connID uint32, router inface.RouterInterface) *ConnectionProcess {
 	c := &ConnectionProcess{
 		Conn:        conn,
 		ConnID:      connID,
 		ConnIsClose: false,
-		HandleApi:   callbackApi,
 		ExitChan:    make(chan bool, 1),
+		Router:      router,
 	}
 
 	return c
@@ -98,13 +99,27 @@ func (c *ConnectionProcess) StartRead() {
 		if dataLen == 0 {
 			continue
 		}
-		utils.Log.Info("receive client data: %s, len: %d\n", string(buf), dataLen)
+		utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
 
 		//调用处理业务的方法
-		err = c.HandleApi(c.Conn, buf, dataLen)
-		if err != nil {
-			utils.Log.Error(" handlerApi error: %s, connID:%d\n", err.Error(), c.ConnID)
-			break
+		//err = c.HandleApi(c.Conn, buf, dataLen)
+		//if err != nil {
+		//	utils.Log.Error(" handlerApi error: %s, connID:%d", err.Error(), c.ConnID)
+		//	break
+		//}
+
+		// 得到当前链接对象的Request数据
+		req := RequestProcess{
+			Conn:    c,
+			ReqData: buf,
 		}
+
+		//走路由, 处理链接的业务, 目前只能添加一个路由
+		go func(req inface.RequestInterface) {
+			c.Router.PreHandle(req)
+			c.Router.Handle(req)
+			c.Router.PostHandle(req)
+		}(&req)
+
 	}
 }
