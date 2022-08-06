@@ -1,0 +1,49 @@
+package utils
+
+import (
+	"encoding/json"
+	"github.com/yanzijie/516tcp/inface"
+	"io/ioutil"
+)
+
+// 全局参数配置
+
+type GlobalConf struct {
+	// server
+	TcpServer      inface.ServerInterface // 当前全局的server对象
+	Host           string                 // 服务器监听的ip
+	TcpPort        int                    // 服务器监听的端口
+	Name           string                 // 服务器名称
+	Version        string                 // 服务版本号
+	MaxConn        int                    // 当前服务的最大链接数
+	MaxPackageSize uint32                 // 当前框架收发数据包的最大值
+}
+
+var GlobalObject *GlobalConf
+
+func init() {
+	// 先写点默认配置
+	GlobalObject = &GlobalConf{
+		Host:           "0.0.0.0",
+		TcpPort:        8999,
+		Name:           "516tcp",
+		Version:        "v0.4",
+		MaxConn:        1000,
+		MaxPackageSize: 4096,
+	}
+	//然后从配置文件里面读, 读出来就覆盖
+	GlobalObject.Reload()
+}
+
+// Reload 加载自定义参数
+func (g *GlobalConf) Reload() {
+	data, err := ioutil.ReadFile("conf.json")
+	if err != nil {
+		panic(err)
+	}
+
+	err = json.Unmarshal(data, &GlobalObject)
+	if err != nil {
+		panic(err)
+	}
+}

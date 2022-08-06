@@ -44,7 +44,7 @@ func (p *TestRouter) PostHandle(req inface.RequestInterface) {
 func main() {
 	utils.Log.Info("this is server....")
 	//1.基于512tcp创建一个server
-	s := process.NewServerProcess("512tcp-v0.3")
+	s := process.NewServerProcess()
 	//2.添加自定义路由
 	r := &TestRouter{}
 	s.AddRouter(r)

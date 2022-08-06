@@ -89,7 +89,7 @@ func (c *ConnectionProcess) StartRead() {
 	// 现在先把读写都放这里，后面再拆分
 	for {
 		// 读取客户端数据到buf中
-		buf := make([]byte, 512)
+		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
 		dataLen, err := c.Conn.Read(buf)
 		if err != nil && err.Error() != "EOF" {
 			utils.Log.Error(" read data from client error: %s, connID:%d\n", err.Error(), c.ConnID)

@@ -12,7 +12,7 @@ type ServerProcess struct {
 	// 服务器名称
 	ServerName string
 	// 服务器绑定的ip版本
-	IPVersion string
+	Version string
 	// 服务器监听的ip
 	IP string
 	// 服务器监听的端口
@@ -35,19 +35,19 @@ type ServerProcess struct {
 //}
 
 func (s *ServerProcess) StatServer() {
-	utils.Log.Info("[START] Server name: %s, listen at IP: %s, Port %d is starting\n",
-		s.ServerName, s.IP, s.Port)
+	utils.Log.Info("[START] Server name: %s, listen at IP: %s, Port %d, version: %s is starting\n",
+		s.ServerName, s.IP, s.Port, s.Version)
 
 	go func() {
 		//1.获取一个TCP的地址
 		ipPort := fmt.Sprintf("%s:%d", s.IP, s.Port)
-		addr, err := net.ResolveTCPAddr(s.IPVersion, ipPort)
+		addr, err := net.ResolveTCPAddr(s.Version, ipPort)
 		if err != nil {
 			utils.Log.Error("net.ResolveTCPAddr error: %s", err.Error())
 			return
 		}
 		//2.监听服务器
-		listen, err := net.ListenTCP(s.IPVersion, addr)
+		listen, err := net.ListenTCP(s.Version, addr)
 		if err != nil {
 			utils.Log.Error("listen fail: ", err)
 			return
@@ -95,12 +95,12 @@ func (s *ServerProcess) AddRouter(router inface.RouterInterface) {
 }
 
 // NewServerProcess 初始化server_process模块
-func NewServerProcess(name string) inface.ServerInterface {
+func NewServerProcess() inface.ServerInterface {
 	return &ServerProcess{
-		ServerName: name,
-		IPVersion:  "tcp4",
-		IP:         "0.0.0.0",
-		Port:       8999,
+		ServerName: utils.GlobalObject.Name,
+		Version:    "tcp4",
+		IP:         utils.GlobalObject.Host,
+		Port:       utils.GlobalObject.TcpPort,
 		Router:     nil, // new的时候指定空, AddRouter的时候赋值
 	}
 }
