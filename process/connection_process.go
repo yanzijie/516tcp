@@ -1,6 +1,7 @@
 package process
 
 import (
+	"errors"
 	"github.com/yanzijie/516tcp/inface"
 	"github.com/yanzijie/516tcp/utils"
 	"net"
@@ -12,12 +13,11 @@ import (
 */
 
 type ConnectionProcess struct {
-	Conn        *net.TCPConn // 当前链接的socket套接字
-	ConnID      uint32       // 链接的ID
-	ConnIsClose bool         // 当前链接状态(是否已经关闭)
-	//HandleApi   inface.HandleFunc      // 与当前链接绑定的业务方法, 这里不需要了，交给router去处理
-	ExitChan chan bool              // 管理当前链接是否退出的channel
-	Router   inface.RouterInterface // 该链接的处理方法
+	Conn        *net.TCPConn           // 当前链接的socket套接字
+	ConnID      uint32                 // 链接的ID
+	ConnIsClose bool                   // 当前链接状态(是否已经关闭)
+	ExitChan    chan bool              // 管理当前链接是否退出的channel
+	Router      inface.RouterInterface // 该链接的处理方法
 }
 
 // NewConnection 初始化链接
@@ -74,8 +74,25 @@ func (c *ConnectionProcess) GetClientAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-// Send 发送数据
-func (c *ConnectionProcess) Send(data []byte) error {
+// Send 发送数据, 先封包，再发送
+func (c *ConnectionProcess) Send(msgId uint32, data []byte) error {
+	if c.ConnIsClose {
+		return errors.New("connection is close")
+	}
+
+	//封包
+	dp := NewDataPackProcess()
+	binaryMsg, err := dp.Pack(NewMessageProcess(msgId, data))
+	if err != nil {
+		utils.Log.Error(" Pack msg error: %s", err.Error())
+		return err
+	}
+
+	_, err = c.Conn.Write(binaryMsg)
+	if err != nil {
+		utils.Log.Error(" Conn.Write msg error: %s", err.Error())
+		return err
+	}
 
 	return nil
 }
@@ -89,32 +106,33 @@ func (c *ConnectionProcess) StartRead() {
 	// 现在先把读写都放这里，后面再拆分
 	for {
 		// 读取客户端数据到buf中
-		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
-		dataLen, err := c.Conn.Read(buf)
-		if err != nil && err.Error() != "EOF" {
-			utils.Log.Error(" read data from client error: %s, connID:%d\n", err.Error(), c.ConnID)
-			continue
-		}
-		//如果没收到数据，就继续读
-		if dataLen == 0 {
-			continue
-		}
-		utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
-
-		//调用处理业务的方法
-		//err = c.HandleApi(c.Conn, buf, dataLen)
-		//if err != nil {
-		//	utils.Log.Error(" handlerApi error: %s, connID:%d", err.Error(), c.ConnID)
-		//	break
+		//buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		//dataLen, err := c.Conn.Read(buf)
+		//if err != nil && err.Error() != "EOF" {
+		//	utils.Log.Error(" read data from client error: %s, connID:%d\n", err.Error(), c.ConnID)
+		//	continue
 		//}
+		////如果没收到数据，就继续读
+		//if dataLen == 0 {
+		//	continue
+		//}
+		//utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
+
+		// 拆包
+		dp := NewDataPackProcess()
+		msg, err := dp.Unpack(c.GetTCPSocketConn())
+		if err != nil {
+			utils.Log.Error("Unpack data error: %s", err.Error())
+			break
+		}
 
 		// 得到当前链接对象的Request数据
 		req := RequestProcess{
 			Conn:    c,
-			ReqData: buf,
+			ReqData: msg,
 		}
 
-		//走路由, 处理链接的业务, 目前只能添加一个路由
+		//调用路由注册好的函数, 处理链接的业务, 目前只能添加一个路由
 		go func(req inface.RequestInterface) {
 			c.Router.PreHandle(req)
 			c.Router.Handle(req)

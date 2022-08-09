@@ -4,5 +4,6 @@ package inface
 
 type RequestInterface interface {
 	GetConnection() ConnectionInterface // 得到当前链接
-	GetReqData() []byte                 // 获取请求的消息数据
+	GetMsgData() []byte                 // 获取请求的消息数据
+	GetMsgId() uint32                   // 获取消息序列号id
 }

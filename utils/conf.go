@@ -27,12 +27,12 @@ func init() {
 		Host:           "0.0.0.0",
 		TcpPort:        8999,
 		Name:           "516tcp",
-		Version:        "v0.4",
+		Version:        "v0.5",
 		MaxConn:        1000,
 		MaxPackageSize: 4096,
 	}
 	//然后从配置文件里面读, 读出来就覆盖
-	GlobalObject.Reload()
+	//GlobalObject.Reload()
 }
 
 // Reload 加载自定义参数

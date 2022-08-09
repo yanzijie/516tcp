@@ -1,7 +1,9 @@
 package main
 
 import (
+	"github.com/yanzijie/516tcp/process"
 	"github.com/yanzijie/516tcp/utils"
+	"io"
 	"net"
 	"time"
 )
@@ -17,24 +19,57 @@ func main() {
 		return
 	}
 
+	// 1.创建链接，使用tcpConn
+	//tcpAddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:8999")
+	//conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	//if err != nil {
+	//	utils.Log.Error(" net.DialTCP error: %s", err.Error())
+	//	return
+	//}
+	defer conn.Close()
+
 	for {
-		//2.写数据给服务端
-		_, err = conn.Write([]byte("hello i am coming"))
+		// 2.封包, 发数据
+		dp := process.NewDataPackProcess()
+		binaryMsg, err := dp.Pack(process.NewMessageProcess(1, []byte("hello i am fuck")))
+		if err != nil {
+			utils.Log.Error(" package msg error: %s", err.Error())
+			break
+		}
+		_, err = conn.Write(binaryMsg)
 		if err != nil {
 			utils.Log.Error("Write data error: %s", err.Error())
-			return
+			break
 		}
 
-		//3.接收服务器数据
-		buf := make([]byte, 512)
-		// dataLen:读取到的数据长度
-		dataLen, err := conn.Read(buf)
+		// 客户端和服务端的conn不同，不能用服务端封装好的拆包方法
+		//1.读取包头数据
+		binaryHead := make([]byte, dp.GetHeadLen())
+		_, err = io.ReadFull(conn, binaryHead)
 		if err != nil {
-			utils.Log.Error("read data error: %s", err.Error())
-			return
+			utils.Log.Error("io.ReadFull error: %s", err.Error())
+			break
 		}
-		utils.Log.Info("receive server data : %s, len : %d", string(buf), dataLen)
+		msg, err := dp.UnpackHead(binaryHead)
+		if err != nil {
+			utils.Log.Error("UnpackHead error: %s", err.Error())
+			break
+		}
+
+		//2.读取包体内容
+		if msg.GetMsgLen() > 0 {
+			data := make([]byte, msg.GetMsgLen())
+			_, err = io.ReadFull(conn, data)
+			if err != nil {
+				utils.Log.Error("io.ReadFull error: %s", err.Error())
+				break
+			}
+			msg.SetMsgData(data)
+		}
+
+		utils.Log.Info("receive server data : %s, len : %d", msg.GetMsgData(), msg.GetMsgLen())
 
 		time.Sleep(2 * time.Second)
 	}
+
 }
