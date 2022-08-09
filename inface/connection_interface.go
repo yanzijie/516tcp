@@ -11,6 +11,8 @@ type ConnectionInterface interface {
 	GetConnID() uint32                    // 获取当前链接的链接ID
 	GetClientAddr() net.Addr              // 获取客户端的tcp状态，ip和port
 	Send(msgId uint32, data []byte) error // 发送数据, 先封包，再发送
+	StartRead()                           // 读协程
+	StartWrite()                          // 回写客户端协程
 }
 
 // HandleFunc 处理链接的业务方法

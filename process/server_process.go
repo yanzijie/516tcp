@@ -17,22 +17,9 @@ type ServerProcess struct {
 	IP string
 	// 服务器监听的端口
 	Port int
-	// server链接对应的处理业务
-	Router inface.RouterInterface
+	// server链接对应的处理业务, 绑定msgID和对应的handler
+	MsgHandler inface.MsgHandlerInterface
 }
-
-// CallBackToClient 当前客户端链接绑定的处理函数, 交由router去处理, 不在这里处理
-//func CallBackToClient(conn *net.TCPConn, data []byte, dataLen int) (err error) {
-//
-//	// 回写数据
-//	utils.Log.Info("write msg to client...,msg is: %s", string(data))
-//	_, err = conn.Write(data[:dataLen])
-//	if err != nil {
-//		utils.Log.Error(" write buf error: %ss", err.Error())
-//		return errors.New("write msg to client error")
-//	}
-//	return
-//}
 
 func (s *ServerProcess) StatServer() {
 	utils.Log.Info("[START] Server name: %s, listen at IP: %s, Port %d, version: %s is starting\n",
@@ -65,11 +52,11 @@ func (s *ServerProcess) StatServer() {
 			}
 
 			// 绑定客户端链接和该链接的业务处理方法
-			processConn := NewConnection(conn, connId, s.Router)
+			processConn := NewConnection(conn, connId, s.MsgHandler)
 			connId++
 
 			// 开启链接的业务处理
-			go processConn.StartRead()
+			go processConn.StartConnection()
 		}
 	}()
 
@@ -89,9 +76,8 @@ func (s *ServerProcess) RunServer() {
 	select {}
 }
 
-func (s *ServerProcess) AddRouter(router inface.RouterInterface) {
-	s.Router = router
-	utils.Log.Info(" add router success")
+func (s *ServerProcess) AddRouter(msgID uint32, router inface.RouterInterface) {
+	s.MsgHandler.AddRouter(msgID, router)
 }
 
 // NewServerProcess 初始化server_process模块
@@ -101,6 +87,6 @@ func NewServerProcess() inface.ServerInterface {
 		Version:    "tcp4",
 		IP:         utils.GlobalObject.Host,
 		Port:       utils.GlobalObject.TcpPort,
-		Router:     nil, // new的时候指定空, AddRouter的时候赋值
+		MsgHandler: NewMsgHandlerProcess(), // new的时候指定空, AddRouter的时候赋值
 	}
 }

@@ -13,22 +13,24 @@ import (
 */
 
 type ConnectionProcess struct {
-	Conn        *net.TCPConn           // 当前链接的socket套接字
-	ConnID      uint32                 // 链接的ID
-	ConnIsClose bool                   // 当前链接状态(是否已经关闭)
-	ExitChan    chan bool              // 管理当前链接是否退出的channel
-	Router      inface.RouterInterface // 该链接的处理方法
+	Conn        *net.TCPConn               // 当前链接的socket套接字
+	ConnID      uint32                     // 链接的ID
+	ConnIsClose bool                       // 当前链接状态(是否已经关闭)
+	ExitChan    chan bool                  // 管理当前链接是否退出的channel, read协程告诉write协程是否退出
+	msgChan     chan []byte                //无缓冲channel，用于读写协程之间消息通信
+	MsgHandler  inface.MsgHandlerInterface // 该链接的对应处理方法(handler)
 }
 
 // NewConnection 初始化链接
 // conn-客户端socket链接, connID-链接id, callbackApi-链接回调函数
-func NewConnection(conn *net.TCPConn, connID uint32, router inface.RouterInterface) *ConnectionProcess {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandler inface.MsgHandlerInterface) *ConnectionProcess {
 	c := &ConnectionProcess{
 		Conn:        conn,
 		ConnID:      connID,
 		ConnIsClose: false,
 		ExitChan:    make(chan bool, 1),
-		Router:      router,
+		msgChan:     make(chan []byte),
+		MsgHandler:  msgHandler,
 	}
 
 	return c
@@ -39,8 +41,8 @@ func (c *ConnectionProcess) StartConnection() {
 	utils.Log.Info("start Conn, connId: %d\n", c.ConnID)
 	// 读取当前链接携带的数据
 	go c.StartRead()
-
-	// 回写数据给客户端 TODO
+	// 回写数据给客户端
+	go c.StartWrite()
 }
 
 // StopConnection 停止链接
@@ -56,7 +58,10 @@ func (c *ConnectionProcess) StopConnection() {
 	lock.Unlock()
 
 	_ = c.Conn.Close() // 关闭链接
-	close(c.ExitChan)  // 回收资源
+	c.ExitChan <- true // 告诉write协程退出
+	// 回收资源
+	close(c.ExitChan)
+	close(c.msgChan)
 }
 
 // GetTCPSocketConn 获取当前链接绑定的socket conn
@@ -88,37 +93,26 @@ func (c *ConnectionProcess) Send(msgId uint32, data []byte) error {
 		return err
 	}
 
-	_, err = c.Conn.Write(binaryMsg)
-	if err != nil {
-		utils.Log.Error(" Conn.Write msg error: %s", err.Error())
-		return err
-	}
+	//_, err = c.Conn.Write(binaryMsg)
+	//if err != nil {
+	//	utils.Log.Error(" Conn.Write msg error: %s", err.Error())
+	//	return err
+	//}
+
+	c.msgChan <- binaryMsg // 发给写goroutine
 
 	return nil
 }
 
 // StartRead 读取当前链接携带的数据
 func (c *ConnectionProcess) StartRead() {
-	utils.Log.Info("read goroutine running connId: %d\n", c.ConnID)
+	utils.Log.Info("[read goroutine running connId: %d]", c.ConnID)
 	defer c.StopConnection()
-	defer utils.Log.Info("read goroutine is exit, client addr is:%s\n", c.GetClientAddr().String())
+	defer utils.Log.Info("[read goroutine is exit, client addr is:%s, connId: %d]", c.GetClientAddr().String(), c.ConnID)
 
 	// 现在先把读写都放这里，后面再拆分
 	for {
-		// 读取客户端数据到buf中
-		//buf := make([]byte, utils.GlobalObject.MaxPackageSize)
-		//dataLen, err := c.Conn.Read(buf)
-		//if err != nil && err.Error() != "EOF" {
-		//	utils.Log.Error(" read data from client error: %s, connID:%d\n", err.Error(), c.ConnID)
-		//	continue
-		//}
-		////如果没收到数据，就继续读
-		//if dataLen == 0 {
-		//	continue
-		//}
-		//utils.Log.Info("receive client data: %s, len: %d", string(buf), dataLen)
-
-		// 拆包
+		// 拆包读取数据
 		dp := NewDataPackProcess()
 		msg, err := dp.Unpack(c.GetTCPSocketConn())
 		if err != nil {
@@ -132,12 +126,30 @@ func (c *ConnectionProcess) StartRead() {
 			ReqData: msg,
 		}
 
-		//调用路由注册好的函数, 处理链接的业务, 目前只能添加一个路由
-		go func(req inface.RequestInterface) {
-			c.Router.PreHandle(req)
-			c.Router.Handle(req)
-			c.Router.PostHandle(req)
-		}(&req)
+		//调用路由,处理请求
+		go c.MsgHandler.DoMsgHandler(&req)
+
+	}
+}
+
+// StartWrite 回写数据给客户端
+func (c *ConnectionProcess) StartWrite() {
+	utils.Log.Info("[write goroutine running connId: %d]", c.ConnID)
+	defer utils.Log.Info("[write goroutine is exit, client addr is:%s, connId: %d]", c.GetClientAddr().String(), c.ConnID)
+
+	for {
+		select {
+		case data := <-c.msgChan:
+			// 有数据来了，回写客户端
+			_, err := c.Conn.Write(data)
+			if err != nil {
+				utils.Log.Error("Conn.Write error: %s", err.Error())
+				return
+			}
+		case <-c.ExitChan:
+			// read已经退出了，write也退
+			return
+		}
 
 	}
 }
