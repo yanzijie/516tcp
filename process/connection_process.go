@@ -93,13 +93,7 @@ func (c *ConnectionProcess) Send(msgId uint32, data []byte) error {
 		return err
 	}
 
-	//_, err = c.Conn.Write(binaryMsg)
-	//if err != nil {
-	//	utils.Log.Error(" Conn.Write msg error: %s", err.Error())
-	//	return err
-	//}
-
-	c.msgChan <- binaryMsg // 发给写goroutine
+	c.msgChan <- binaryMsg // 发给写goroutine进行处理
 
 	return nil
 }
@@ -121,13 +115,18 @@ func (c *ConnectionProcess) StartRead() {
 		}
 
 		// 得到当前链接对象的Request数据
-		req := RequestProcess{
+		req := &RequestProcess{
 			Conn:    c,
 			ReqData: msg,
 		}
 
-		//调用路由,处理请求
-		go c.MsgHandler.DoMsgHandler(&req)
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			// 那请求发送给消息队列，然后让协程池的协程去处理
+			c.MsgHandler.SendMsgToTaskQueen(req)
+		} else {
+			// 如果协程池没有协程，就直接自己开一个协程处理
+			go c.MsgHandler.DoMsgHandler(req)
+		}
 
 	}
 }
@@ -147,7 +146,7 @@ func (c *ConnectionProcess) StartWrite() {
 				return
 			}
 		case <-c.ExitChan:
-			// read已经退出了，write也退
+			// read已经退出了，write也退出
 			return
 		}
 

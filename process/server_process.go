@@ -26,6 +26,8 @@ func (s *ServerProcess) StatServer() {
 		s.ServerName, s.IP, s.Port, s.Version)
 
 	go func() {
+		// 开启消息队列和工作协程池
+		s.MsgHandler.StartWorkerPool()
 		//1.获取一个TCP的地址
 		ipPort := fmt.Sprintf("%s:%d", s.IP, s.Port)
 		addr, err := net.ResolveTCPAddr(s.Version, ipPort)

@@ -37,7 +37,7 @@ func main() {
 		//if num <= 0 || num > 3 {
 		//	continue
 		//}
-		binaryMsg, err := dp.Pack(process.NewMessageProcess(1, []byte("hello i am fuck 1")))
+		binaryMsg, err := dp.Pack(process.NewMessageProcess(2, []byte("hello i am fuck 2")))
 		if err != nil {
 			utils.Log.Error(" package msg error: %s", err.Error())
 			break
