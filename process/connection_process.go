@@ -13,25 +13,29 @@ import (
 */
 
 type ConnectionProcess struct {
-	Conn        *net.TCPConn               // 当前链接的socket套接字
-	ConnID      uint32                     // 链接的ID
-	ConnIsClose bool                       // 当前链接状态(是否已经关闭)
-	ExitChan    chan bool                  // 管理当前链接是否退出的channel, read协程告诉write协程是否退出
-	msgChan     chan []byte                //无缓冲channel，用于读写协程之间消息通信
-	MsgHandler  inface.MsgHandlerInterface // 该链接的对应处理方法(handler)
+	FatherServer inface.ServerInterface     // 当前链接所属的server
+	Conn         *net.TCPConn               // 当前链接的socket套接字
+	ConnID       uint32                     // 链接的ID
+	ConnIsClose  bool                       // 当前链接状态(是否已经关闭)
+	ExitChan     chan bool                  // 管理当前链接是否退出的channel, read协程告诉write协程是否退出
+	msgChan      chan []byte                //无缓冲channel，用于读写协程之间消息通信
+	MsgHandler   inface.MsgHandlerInterface // 该链接的对应处理方法(handler)
 }
 
 // NewConnection 初始化链接
-// conn-客户端socket链接, connID-链接id, callbackApi-链接回调函数
-func NewConnection(conn *net.TCPConn, connID uint32, msgHandler inface.MsgHandlerInterface) *ConnectionProcess {
+// conn-客户端socket链接, connID-链接id, msgHandler-消息处理模块
+func NewConnection(server inface.ServerInterface, conn *net.TCPConn, connID uint32, msgHandler inface.MsgHandlerInterface) *ConnectionProcess {
 	c := &ConnectionProcess{
-		Conn:        conn,
-		ConnID:      connID,
-		ConnIsClose: false,
-		ExitChan:    make(chan bool, 1),
-		msgChan:     make(chan []byte),
-		MsgHandler:  msgHandler,
+		FatherServer: server,
+		Conn:         conn,
+		ConnID:       connID,
+		ConnIsClose:  false,
+		ExitChan:     make(chan bool, 1),
+		msgChan:      make(chan []byte),
+		MsgHandler:   msgHandler,
 	}
+
+	c.FatherServer.GetConnManager().AddConn(c)
 
 	return c
 }
@@ -59,6 +63,10 @@ func (c *ConnectionProcess) StopConnection() {
 
 	_ = c.Conn.Close() // 关闭链接
 	c.ExitChan <- true // 告诉write协程退出
+
+	// 移除链接管理模块
+	c.FatherServer.GetConnManager().RemoveConn(c)
+
 	// 回收资源
 	close(c.ExitChan)
 	close(c.msgChan)

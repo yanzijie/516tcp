@@ -4,5 +4,7 @@
   "Name" : "516tcp-server",
   "Version" : "v0.4",
   "MaxConn" : 1000,
-  "MaxPackageSize" : 4096
+  "MaxPackageSize" : 4096,
+  "WorkerPoolSize" : 10,
+  "MaxWorkerSize": 1024
 }

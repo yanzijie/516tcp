@@ -19,6 +19,8 @@ type ServerProcess struct {
 	Port int
 	// server链接对应的处理业务, 绑定msgID和对应的handler
 	MsgHandler inface.MsgHandlerInterface
+	// 链接管理
+	ConnManager inface.ConnManagerInterface
 }
 
 func (s *ServerProcess) StatServer() {
@@ -53,8 +55,17 @@ func (s *ServerProcess) StatServer() {
 				continue
 			}
 
+			// 判断当前server链接是否到达上限
+			if s.ConnManager.GetConnNumberLen() > utils.GlobalObject.MaxConn {
+				// 返回客户端链接已经满 TODO
+				_ = conn.Close()
+				utils.Log.Warn(" conn is full!! conn is full!! conn is full!!")
+				continue
+			}
+
+			// 初始化链接
 			// 绑定客户端链接和该链接的业务处理方法
-			processConn := NewConnection(conn, connId, s.MsgHandler)
+			processConn := NewConnection(s, conn, connId, s.MsgHandler)
 			connId++
 
 			// 开启链接的业务处理
@@ -66,6 +77,7 @@ func (s *ServerProcess) StatServer() {
 
 func (s *ServerProcess) StopServer() {
 	// 回收资源
+	s.ConnManager.ClearConn()
 }
 
 func (s *ServerProcess) RunServer() {
@@ -82,13 +94,18 @@ func (s *ServerProcess) AddRouter(msgID uint32, router inface.RouterInterface) {
 	s.MsgHandler.AddRouter(msgID, router)
 }
 
+func (s *ServerProcess) GetConnManager() inface.ConnManagerInterface {
+	return s.ConnManager
+}
+
 // NewServerProcess 初始化server_process模块
 func NewServerProcess() inface.ServerInterface {
 	return &ServerProcess{
-		ServerName: utils.GlobalObject.Name,
-		Version:    "tcp4",
-		IP:         utils.GlobalObject.Host,
-		Port:       utils.GlobalObject.TcpPort,
-		MsgHandler: NewMsgHandlerProcess(), // new的时候指定空, AddRouter的时候赋值
+		ServerName:  utils.GlobalObject.Name,
+		Version:     "tcp4",
+		IP:          utils.GlobalObject.Host,
+		Port:        utils.GlobalObject.TcpPort,
+		MsgHandler:  NewMsgHandlerProcess(), // new的时候指定空, AddRouter的时候赋值
+		ConnManager: NewConnManager(),
 	}
 }
