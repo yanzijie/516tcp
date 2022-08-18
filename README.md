@@ -1,5 +1,5 @@
-# 516tcp
-模仿zinx练手的一个tcp框架
+
+模仿zinx练手学习的一个tcp框架
 
 cd demo/version<br>
 go run Server.go 运行服务器<br>
