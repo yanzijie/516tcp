@@ -20,6 +20,34 @@ type ConnectionProcess struct {
 	ExitChan     chan bool                  // 管理当前链接是否退出的channel, read协程告诉write协程是否退出
 	msgChan      chan []byte                //无缓冲channel，用于读写协程之间消息通信
 	MsgHandler   inface.MsgHandlerInterface // 该链接的对应处理方法(handler)
+	Property     map[string]interface{}     // 链接信息
+	PropertyLock sync.RWMutex
+}
+
+func (c *ConnectionProcess) SetProperty(key string, value interface{}) {
+	c.PropertyLock.Lock()
+	defer c.PropertyLock.Unlock()
+
+	c.Property[key] = value
+}
+
+func (c *ConnectionProcess) GetProperty(key string) (interface{}, error) {
+	c.PropertyLock.RLock()
+	defer c.PropertyLock.RUnlock()
+
+	value, ok := c.Property[key]
+	if ok {
+		return value, nil
+	} else {
+		return nil, errors.New("this key is not exist")
+	}
+}
+
+func (c *ConnectionProcess) RemoveProperty(key string) {
+	c.PropertyLock.Lock()
+	defer c.PropertyLock.Unlock()
+
+	delete(c.Property, key)
 }
 
 // NewConnection 初始化链接
@@ -33,6 +61,7 @@ func NewConnection(server inface.ServerInterface, conn *net.TCPConn, connID uint
 		ExitChan:     make(chan bool, 1),
 		msgChan:      make(chan []byte),
 		MsgHandler:   msgHandler,
+		Property:     make(map[string]interface{}),
 	}
 
 	c.FatherServer.GetConnManager().AddConn(c)
@@ -47,6 +76,8 @@ func (c *ConnectionProcess) StartConnection() {
 	go c.StartRead()
 	// 回写数据给客户端
 	go c.StartWrite()
+
+	c.FatherServer.CallOnConnStart(c)
 }
 
 // StopConnection 停止链接
@@ -60,6 +91,9 @@ func (c *ConnectionProcess) StopConnection() {
 	lock.Lock()
 	c.ConnIsClose = true
 	lock.Unlock()
+
+	// 关闭链接之前调用一下对应的钩子函数
+	c.FatherServer.CallOnConnStop(c)
 
 	_ = c.Conn.Close() // 关闭链接
 	c.ExitChan <- true // 告诉write协程退出

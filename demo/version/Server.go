@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/yanzijie/516tcp/inface"
 	"github.com/yanzijie/516tcp/process"
 	"github.com/yanzijie/516tcp/utils"
@@ -73,14 +74,50 @@ func (p *ThreeRouter) Handle(req inface.RequestInterface) {
 	}
 }
 
+// 链接创建之后执行
+func connStart(conn inface.ConnectionInterface) {
+	fmt.Println(" ===> conn start")
+	err := conn.Send(202, []byte("conn start"))
+	if err != nil {
+		fmt.Println("Send error : ", err.Error())
+	}
+
+	// 给链接设置一些信息
+	conn.SetProperty("name", "lao6")
+	conn.SetProperty("nickName", "6666")
+	conn.SetProperty("age", 10001)
+}
+
+// 链接断开之前执行
+func connStop(conn inface.ConnectionInterface) {
+	fmt.Println(" ===> connID = ", conn.GetConnID(), " is stop")
+
+	if name, err := conn.GetProperty("name"); err == nil {
+		fmt.Println(" name is ==> ", name)
+	}
+
+	if nickName, err := conn.GetProperty("nickName"); err == nil {
+		fmt.Println(" nickName is ==> ", nickName)
+	}
+
+	if age, err := conn.GetProperty("age"); err == nil {
+		fmt.Println(" age is ==> ", age)
+	}
+}
+
 func main() {
 	utils.Log.Info("this is server....")
-	//1.基于512tcp创建一个server
+	// 基于512tcp创建一个server
 	s := process.NewServerProcess()
-	//2.添加自定义路由
+
+	// 注册钩子函数
+	s.SetOnConnStart(connStart)
+	s.SetOnConnStop(connStop)
+
+	// 添加自定义路由
 	s.AddRouter(msgIdOne, &OneRouter{})
 	s.AddRouter(msgIdTwo, &TwoRouter{})
 	s.AddRouter(msgIdThree, &ThreeRouter{})
-	//3.启动
+	// 启动
 	s.RunServer()
 }

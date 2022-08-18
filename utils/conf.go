@@ -25,24 +25,24 @@ var GlobalObject *GlobalConf
 
 func init() {
 	// 先写默认配置
-	GlobalObject = &GlobalConf{
-		Host:           "0.0.0.0",
-		TcpPort:        8999,
-		Name:           "516tcp",
-		Version:        "v0.5",
-		MaxConn:        1000,
-		MaxPackageSize: 4096,
-		WorkerPoolSize: 10,
-		MaxWorkerSize:  1024,
-	}
+	//GlobalObject = &GlobalConf{
+	//	Host:           "0.0.0.0",
+	//	TcpPort:        8999,
+	//	Name:           "516tcp",
+	//	Version:        "v1.0",
+	//	MaxConn:        1000,
+	//	MaxPackageSize: 4096,
+	//	WorkerPoolSize: 10,
+	//	MaxWorkerSize:  1024,
+	//}
 	//然后从配置文件里面读, 读出来就覆盖
 	GlobalObject.Reload()
 }
 
 // Reload 加载自定义参数
 func (g *GlobalConf) Reload() {
-	//data, err := ioutil.ReadFile("demo/version/conf.json") // debug用这个
-	data, err := ioutil.ReadFile("conf.json") // 实际跑用这个
+	//data, err := ioutil.ReadFile("demo/version/conf.json") // 编译器运行用这个
+	data, err := ioutil.ReadFile("conf.json") // go run 用这个
 	if err != nil {
 		panic(err)
 	}

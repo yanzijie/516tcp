@@ -13,6 +13,9 @@ type ConnectionInterface interface {
 	Send(msgId uint32, data []byte) error // 发送数据, 先封包，再发送
 	StartRead()                           // 读协程
 	StartWrite()                          // 回写客户端协程
+	SetProperty(key string, value interface{})
+	GetProperty(key string) (interface{}, error)
+	RemoveProperty(key string)
 }
 
 // HandleFunc 处理链接的业务方法

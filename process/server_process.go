@@ -21,6 +21,10 @@ type ServerProcess struct {
 	MsgHandler inface.MsgHandlerInterface
 	// 链接管理
 	ConnManager inface.ConnManagerInterface
+	// 创建链接之后自动调用的hook函数
+	OnConnStart func(conn inface.ConnectionInterface)
+	// 销毁链接之前自动调用的hook函数
+	OnConnStop func(conn inface.ConnectionInterface)
 }
 
 func (s *ServerProcess) StatServer() {
@@ -96,6 +100,26 @@ func (s *ServerProcess) AddRouter(msgID uint32, router inface.RouterInterface) {
 
 func (s *ServerProcess) GetConnManager() inface.ConnManagerInterface {
 	return s.ConnManager
+}
+
+func (s *ServerProcess) SetOnConnStart(hookFunc func(conn inface.ConnectionInterface)) {
+	s.OnConnStart = hookFunc
+}
+
+func (s *ServerProcess) SetOnConnStop(hookFunc func(conn inface.ConnectionInterface)) {
+	s.OnConnStop = hookFunc
+}
+
+func (s *ServerProcess) CallOnConnStart(conn inface.ConnectionInterface) {
+	if s.OnConnStart != nil {
+		s.OnConnStart(conn)
+	}
+}
+
+func (s *ServerProcess) CallOnConnStop(conn inface.ConnectionInterface) {
+	if s.OnConnStop != nil {
+		s.OnConnStop(conn)
+	}
 }
 
 // NewServerProcess 初始化server_process模块
